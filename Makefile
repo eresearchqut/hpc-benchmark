@@ -9,6 +9,9 @@ applications:
 		mkdir -p $$appdir ; \
 	done
 
+data:
+	mkdir -p data
+
 results:
 	@for arch in ${architectures} ; do \
 		resultsdir="results/$(now)/$$arch" ; \
@@ -80,5 +83,8 @@ $(pull_amd_gpu_tensorflow): applications
 clean_results:
 	rm -rf results/
 
-clean: clean_results
+clean_data:
+	rm -rf data/
+
+clean: clean_results clean_data
 	rm -rf applications/
