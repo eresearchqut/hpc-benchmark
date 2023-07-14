@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 architectures := amd_gpu amd_cpu intel_cpu nvidia_gpu
-now := $(shell date +%s)
+now := $(shell date +"%Y-%m-%d_%H-%M-%S")
 
 applications:
 	@for arch in ${architectures} ; do \
