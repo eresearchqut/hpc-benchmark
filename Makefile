@@ -41,6 +41,15 @@ pull_amd_gpu: $(pull_amd_gpu_gromacs) $(pull_amd_gpu_hpl) $(pull_amd_gpu_namd) $
 $(pull_amd_gpu_gromacs): applications
 	apptainer pull applications/amd_gpu/gromacs.sif docker://amdih/gromacs:2022.3.amd1_174
 
+run_amd_gpu_gromacs: $(pull_amd_gpu_gromacs) results
+	@for problem in adh_dodec cellulose_nve stmv; do \
+		result_dir=$$PWD/$(amd_gpu_results_dir)/gromacs/$$problem; \
+		mkdir -p $$result_dir; \
+		echo "$$problem: $$result_dir"; \
+		apptainer run --pwd $$result_dir applications/amd_gpu/gromacs.sif tar xvf /benchmarks/$$problem/$$problem.tar.gz; \
+		apptainer run --pwd $$result_dir applications/amd_gpu/gromacs.sif gmx mdrun -pin on -nsteps 100000 -resetstep 90000 -ntmpi 8 -ntomp 8 -noconfout -nb gpu -bonded gpu -pme gpu -v -gpu_id 0 -npme 1 -s topol.tpr -nstlist 40; \
+	done
+
 $(pull_amd_gpu_hpl): applications
 	apptainer pull applications/amd_gpu/hpl.sif docker://amdih/rochpl:6.0.amd0
 
