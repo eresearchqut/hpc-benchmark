@@ -1,7 +1,11 @@
+.PHONY: clean
 SHELL=/bin/bash
 architectures := amd_gpu amd_cpu intel_cpu nvidia_gpu
 now := $(shell date +"%Y-%m-%d_%H-%M-%S")
 
+application_dirs := applications/amd_gpu applications/amd_cpu applications/intel_cpu applications/nvidia_gpu
+
+#applications: $(application_dirs)
 applications:
 	@for arch in ${architectures} ; do \
 		appdir="applications/$$arch" ; \
@@ -51,42 +55,53 @@ pull_amd_gpu_tensorflow := $(amd_gpu_apps_dir)/tensorflow.sif $(amd_gpu_apps_dir
 pull_amd_gpu_deps := $(pull_amd_gpu_gromacs) $(pull_amd_gpu_hpl) $(pull_amd_gpu_namd) $(pull_amd_gpu_openfoam) $(pull_amd_gpu_pytorch) $(pull_amd_gpu_tensorflow)
 
 pull_amd_gpu: $(pull_amd_gpu_gromacs) $(pull_amd_gpu_hpl) $(pull_amd_gpu_namd) $(pull_amd_gpu_openfoam) $(pull_amd_gpu_pytorch) $(pull_amd_gpu_tensorflow)
+run_amd_gpu: $(run_amd_gpu_gromacs) $(run_amd_gpu_hpl)
 
 $(pull_amd_gpu_gromacs): applications
 	apptainer pull applications/amd_gpu/gromacs.sif docker://amdih/gromacs:2022.3.amd1_174
 
+run_amd_gpu_gromacs_variations := \
+	"-pin on -nsteps 100000 -resetstep 90000 -ntmpi 1 -ntomp 64 -noconfout -nb gpu -bonded cpu -pme gpu -v -nstlist 100 -gpu_id 0 -s topol.tpr" \
+	"-pin on -nsteps 100000 -resetstep 90000 -ntmpi 2 -ntomp 32 -noconfout -nb gpu -bonded gpu -pme gpu -npme 1 -v -nstlist 200 -gpu_id 01 -s topol.tpr" \
+	"-pin on -nsteps 100000 -resetstep 90000 -ntmpi 3 -ntomp 24 -noconfout -nb gpu -bonded gpu -pme gpu -npme 1 -v -nstlist 300 -gpu_id 012 -s topol.tpr"
+
 run_amd_gpu_gromacs: $(pull_amd_gpu_gromacs) results
 	@for problem in adh_dodec cellulose_nve stmv; do \
-		result_dir=$$PWD/$(amd_gpu_results_dir)/gromacs/$$problem; \
-		mkdir -p $$result_dir; \
-		echo "$$problem: $$result_dir"; \
-		apptainer run --pwd $$result_dir applications/amd_gpu/gromacs.sif tar xvf /benchmarks/$$problem/$$problem.tar.gz; \
-		apptainer run --pwd $$result_dir applications/amd_gpu/gromacs.sif gmx mdrun -pin on -nsteps 100000 -resetstep 90000 -ntmpi 8 -ntomp 8 -noconfout -nb gpu -bonded gpu -pme gpu -v -gpu_id 0 -npme 1 -s topol.tpr -nstlist 40; \
+		index=0; \
+		for variation in $(run_amd_gpu_gromacs_variations); do \
+			result_dir=$$PWD/$(amd_gpu_results_dir)/gromacs/$$problem/$$index; \
+			mkdir -p $$result_dir; \
+			echo "$$problem: $$result_dir"; \
+			echo "$$variation" > $$result_dir/command; \
+			ln -s $$PWD/data/gromacs/$$problem/topol.tpr $$result_dir/topol.tpr; \
+			apptainer run --pwd $$result_dir applications/amd_gpu/gromacs.sif gmx mdrun $$variation |& tee $$result_dir/out; \
+			((index++)); \
+		done \
 	done
 
 $(pull_amd_gpu_hpl): applications
 	apptainer pull applications/amd_gpu/hpl.sif docker://amdih/rochpl:6.0.amd0
 
 run_amd_gpu_hpl_variations := \
-	"mpirun_rochpl -P 1 -Q 1 -N 64000 --NB 512" \
-	"mpirun_rochpl -P 1 -Q 2 -N 90112 --NB 512" \
-	"mpirun_rochpl -P 2 -Q 2 -N 126976 --NB 512" \
-	"mpirun_rochpl -P 2 -Q 4 -N 180224 --NB 512" \
-	"mpirun_rochpl -P 1 -Q 1 -N 90112 --NB 512" \
-	"mpirun_rochpl -P 2 -Q 1 -N 128000 --NB 512" \
-	"mpirun_rochpl -P 2 -Q 2 -N 180224 --NB 512" \
-	"mpirun_rochpl -P 2 -Q 4 -N 256000 --NB 512" \
-	"mpirun_rochpl -P 4 -Q 4 -N 360448 --NB 512"
+	"-P 1 -Q 1 -N 64000 --NB 512" \
+	"-P 1 -Q 2 -N 90112 --NB 512" \
+	"-P 2 -Q 2 -N 126976 --NB 512" \
+	"-P 2 -Q 4 -N 180224 --NB 512" \
+	"-P 1 -Q 1 -N 90112 --NB 512" \
+	"-P 2 -Q 1 -N 128000 --NB 512" \
+	"-P 2 -Q 2 -N 180224 --NB 512" \
+	"-P 2 -Q 4 -N 256000 --NB 512" \
+	"-P 4 -Q 4 -N 360448 --NB 512"
 
 run_amd_gpu_hpl: $(pull_amd_gpu_hpl) results
 	@index=0; \
 	for variation in $(run_amd_gpu_hpl_variations); do \
-		echo "HPL: $$variation" ; \
-		result_dir=$(amd_gpu_results_dir)/hpl/$$index ; \
-		mkdir -p $$result_dir ; \
-		echo "$$variation" > $$result_dir/command ; \
-		apptainer run --writable-tmpfs --pwd $$PWD/$$result_dir applications/amd_gpu/hpl.sif $$variation > $$result_dir/out ; \
-		((index++)) ; \
+		echo "HPL: $$variation"; \
+		result_dir=$(amd_gpu_results_dir)/hpl/$$index; \
+		mkdir -p $$result_dir; \
+		echo "$$variation" > $$result_dir/command; \
+		apptainer run --writable-tmpfs --pwd $$PWD/$$result_dir applications/amd_gpu/hpl.sif mpirun_rochpl $$variation |& tee $$result_dir/out; \
+		((index++)); \
 	done
 
 $(pull_amd_gpu_namd): applications
@@ -103,11 +118,76 @@ $(pull_amd_gpu_tensorflow): applications
 	apptainer pull applications/amd_gpu/tensorflow.sif docker://amdih/tensorflow:rocm5.0-tf2.7-dev
 	apptainer pull applications/amd_gpu/tensorflow_uif.sif docker://amdih/uif-tensorflow:uif1.1_rocm5.4.1_vai3.0_tensorflow2.10
 
+
+########################
+###### NVIDIA GPU ######
+########################
+
+nvidia_gpu_apps_dir := applications/nvidia_gpu
+nvidia_gpu_results_dir := results/$(now)/nvidia_gpu
+
+pull_nvidia_gpu_ngc := $(nvidia_gpu_apps_dir)/ngc/ngc-cli/ngc
+pull_nvidia_gpu_ngc_config := $(HOME)/.ngc/config
+pull_nvidia_gpu_docker_config := $(HOME)/.docker/config.json
+
+pull_nvidia_gpu_gromacs := $(nvidia_gpu_apps_dir)/gromacs.sif
+pull_nvidia_gpu_hpl := $(nvidia_gpu_apps_dir)/hpl.sif
+pull_nvidia_gpu_namd := $(nvidia_gpu_apps_dir)/namd.sif
+pull_nvidia_gpu_openfoam := $(nvidia_gpu_apps_dir)/openfoam.sif
+pull_nvidia_gpu_pytorch := $(nvidia_gpu_apps_dir)/pytorch.sif $(nvidia_gpu_apps_dir)/pytorch_uif.sif
+pull_nvidia_gpu_tensorflow := $(nvidia_gpu_apps_dir)/tensorflow.sif $(nvidia_gpu_apps_dir)/tensorflow_uif.sif
+
+pull_nvidia_gpu_deps := $(pull_nvidia_gpu_gromacs) $(pull_nvidia_gpu_hpl) $(pull_nvidia_gpu_namd) $(pull_nvidia_gpu_openfoam) $(pull_nvidia_gpu_pytorch) $(pull_nvidia_gpu_tensorflow)
+
+pull_nvidia_gpu: $(pull_nvidia_gpu_ngc_config) $(pull_nvidia_gpu_docker_config)
+#pull_nvidia_gpu: $(pull_nvidia_gpu_gromacs) $(pull_nvidia_gpu_hpl) $(pull_nvidia_gpu_namd) $(pull_nvidia_gpu_openfoam) $(pull_nvidia_gpu_pytorch) $(pull_nvidia_gpu_tensorflow)
+#run_nvidia_gpu: $(run_nvidia_gpu_gromacs) $(run_nvidia_gpu_hpl)
+
+$(pull_nvidia_gpu_ngc):
+	mkdir -p applications/nvidia_gpu/
+	wget --content-disposition https://ngc.nvidia.com/downloads/ngccli_linux.zip -O applications/nvidia_gpu/ngc.zip
+	unzip -o applications/nvidia_gpu/ngc.zip -d applications/nvidia_gpu/ngc
+	chmod u+x applications/nvidia_gpu/ngc/ngc-cli/ngc
+
+$(pull_nvidia_gpu_ngc_config): $(pull_nvidia_gpu_ngc)
+	@echo "Login to NVIDIA NGC, and follow the instructions here to enter your API key"
+	@echo "https://ngc.nvidia.com/setup/api-key"
+	./applications/nvidia_gpu/ngc/ngc-cli/ngc config set
+
+$(pull_nvidia_gpu_docker_config): $(pull_nvidia_gpu_ngc_config)
+	@echo "Login to NVIDIA NGC, and follow the instructions here to enter your API key"
+	@echo "https://ngc.nvidia.com/setup/api-key"
+	docker login nvcr.io
+
+$(pull_nvidia_gpu_gromacs): $(pull_nvidia_gpu_docker_config)
+	apptainer pull applications/nvidia_gpu/gromacs.sif docker://nvcr.io/hpc/gromacs:2022.3
+
+run_nvidia_gpu_gromacs_variations := \
+	"-pin on -nsteps 100000 -resetstep 90000 -ntmpi 1 -ntomp 64 -noconfout -nb gpu -bonded cpu -pme gpu -v -nstlist 100 -gpu_id 0 -s topol.tpr" \
+	"-pin on -nsteps 100000 -resetstep 90000 -ntmpi 2 -ntomp 32 -noconfout -nb gpu -bonded gpu -pme gpu -npme 1 -v -nstlist 200 -gpu_id 01 -s topol.tpr" \
+	"-pin on -nsteps 100000 -resetstep 90000 -ntmpi 3 -ntomp 24 -noconfout -nb gpu -bonded gpu -pme gpu -npme 1 -v -nstlist 300 -gpu_id 012 -s topol.tpr"
+
+run_nvidia_gpu_gromacs: $(pull_nvidia_gpu_gromacs) results
+	@for problem in adh_dodec cellulose_nve stmv; do \
+		index=0; \
+		for variation in $(run_nvidia_gpu_gromacs_variations); do \
+			result_dir=$$PWD/$(nvidia_gpu_results_dir)/gromacs/$$problem/$$index; \
+			mkdir -p $$result_dir; \
+			echo "$$problem: $$result_dir"; \
+			echo "$$variation" > $$result_dir/command; \
+			ln -s $$PWD/data/gromacs/$$problem/topol.tpr $$result_dir/topol.tpr; \
+			apptainer run --nv --pwd $$result_dir applications/nvidia_gpu/gromacs.sif gmx mdrun $$variation |& tee $$result_dir/out; \
+			((index++)); \
+		done \
+	done
+
+clean_applications:
+	rm -rf applications/
+
 clean_results:
 	rm -rf results/
 
 clean_data:
 	rm -rf data/
 
-clean: clean_results clean_data
-	rm -rf applications/
+clean: clean_applications clean_results clean_data
