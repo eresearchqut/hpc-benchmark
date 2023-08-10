@@ -10,7 +10,21 @@ applications:
 	done
 
 data:
-	mkdir -p data
+	mkdir -p data/gromacs/adh_dodec data/gromacs/cellulose_nve data/gromacs/stmv
+
+	wget https://github.com/amd/InfinityHub-CI/raw/569d827145ee674774d2738ec30e79374bc48a03/gromacs/docker/benchmark/adh_dodec/adh_dodec.tar.gz -O data/gromacs/adh_dodec.tar.gz
+	tar xvf data/gromacs/adh_dodec.tar.gz -C data/gromacs/adh_dodec
+	rm data/gromacs/adh_dodec.tar.gz
+
+	wget https://github.com/amd/InfinityHub-CI/raw/569d827145ee674774d2738ec30e79374bc48a03/gromacs/docker/benchmark/cellulose_nve/cellulose_nve.tar.gz -O data/gromacs/cellulose_nve.tar.gz
+	tar xvf data/gromacs/cellulose_nve.tar.gz -C data/gromacs/cellulose_nve
+	rm data/gromacs/cellulose_nve.tar.gz
+
+	wget https://github.com/amd/InfinityHub-CI/raw/569d827145ee674774d2738ec30e79374bc48a03/gromacs/docker/benchmark/stmv/stmv.tar.gz -O data/gromacs/stmv.tar.gz
+	tar xvf data/gromacs/stmv.tar.gz -C data/gromacs/stmv
+	rm data/gromacs/stmv.tar.gz
+
+
 
 results:
 	@for arch in ${architectures} ; do \
