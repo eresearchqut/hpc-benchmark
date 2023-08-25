@@ -37,7 +37,6 @@ results:
 		mkdir -p $$resultsdir ; \
 	done
 
-
 #########################
 ######## AMD GPU ########
 #########################
@@ -179,6 +178,31 @@ run_nvidia_gpu_gromacs: $(pull_nvidia_gpu_gromacs) results
 			apptainer run --nv --pwd $$result_dir applications/nvidia_gpu/gromacs.sif gmx mdrun $$variation |& tee $$result_dir/out; \
 			((index++)); \
 		done \
+	done
+
+$(pull_nvidia_gpu_hpl): $(pull_nvidia_gpu_docker_config)
+	apptainer pull applications/nvidia_gpu/hpl.sif docker://nvcr.io/nvidia/hpc-benchmarks:23.5
+
+run_nvidia_gpu_hpl_variations := \
+	"-P 1 -Q 1 -N 64000 --NB 512" \
+	"-P 1 -Q 2 -N 90112 --NB 512" \
+	"-P 2 -Q 2 -N 126976 --NB 512" \
+	"-P 2 -Q 4 -N 180224 --NB 512" \
+	"-P 1 -Q 1 -N 90112 --NB 512" \
+	"-P 2 -Q 1 -N 128000 --NB 512" \
+	"-P 2 -Q 2 -N 180224 --NB 512" \
+	"-P 2 -Q 4 -N 256000 --NB 512" \
+	"-P 4 -Q 4 -N 360448 --NB 512"
+
+run_nvidia_gpu_hpl: $(pull_nvidia_gpu_hpl) results
+	@index=0; \
+	for variation in $(run_nvidia_gpu_hpl_variations); do \
+		echo "HPL: $$variation"; \
+		result_dir=$(nvidia_gpu_results_dir)/hpl/$$index; \
+		mkdir -p $$result_dir; \
+		echo "$$variation" > $$result_dir/command; \
+		apptainer run --nv --writable-tmpfs --pwd $$PWD/$$result_dir applications/nvidia_gpu/hpl.sif hpcg.sh $$variation |& tee $$result_dir/out; \
+		((index++)); \
 	done
 
 clean_applications:
