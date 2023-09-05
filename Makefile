@@ -110,8 +110,7 @@ $(pull_amd_gpu_openfoam): applications
 	apptainer pull applications/amd_gpu/openfoam.sif docker://amdih/openfoam:2206.1.amd3
 
 $(pull_amd_gpu_pytorch): applications
-	apptainer pull applications/amd_gpu/pytorch.sif docker://amdih/pytorch:rocm5.0_ubuntu18.04_py3.7_pytorch_1.10.0
-	apptainer pull applications/amd_gpu/pytorch_uif.sif docker://amdih/uif-pytorch:uif1.1_rocm5.4.1_vai3.0_py3.7_pytorch1.12
+	apptainer pull applications/amd_gpu/pytorch.sif docker://rocm/pytorch:rocm5.6_ubuntu20.04_py3.8_pytorch_2.0.1
 
 $(pull_amd_gpu_tensorflow): applications
 	apptainer pull applications/amd_gpu/tensorflow.sif docker://amdih/tensorflow:rocm5.0-tf2.7-dev
@@ -160,6 +159,9 @@ $(pull_nvidia_gpu_docker_config): $(pull_nvidia_gpu_ngc_config)
 
 $(pull_nvidia_gpu_gromacs): $(pull_nvidia_gpu_docker_config)
 	apptainer pull applications/nvidia_gpu/gromacs.sif docker://nvcr.io/hpc/gromacs:2022.3
+
+$(pull_nvidia_gpu_pytorch): $(pull_nvidia_gpu_docker_config)
+	apptainer pull applications/nvidia_gpu/pytorch.sif docker://nvcr.io/nvidia/pytorch:23.08-py3
 
 run_nvidia_gpu_gromacs_variations := \
 	"-pin on -nsteps 100000 -resetstep 90000 -ntmpi 1 -ntomp 64 -noconfout -nb gpu -bonded cpu -pme gpu -v -nstlist 100 -gpu_id 0 -s topol.tpr" \
